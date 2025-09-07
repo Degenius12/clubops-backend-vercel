@@ -1,0 +1,21 @@
+{
+  "name": "clubops-backend-vercel",
+  "version": "1.0.0",
+  "description": "ClubOps - Professional Club Management Backend API (Vercel Serverless)",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step required for serverless functions'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["clubops", "club-management", "saas", "api", "vercel", "serverless"],
+  "author": "ClubOps Team",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
