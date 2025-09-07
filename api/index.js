@@ -8,6 +8,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 console.log(`🚀 Backend starting - Environment: ${NODE_ENV}`);
 console.log(`🌐 Configured frontend URL: ${FRONTEND_URL}`);
+console.log(`🔑 JWT Secret length: ${JWT_SECRET.length} characters`);
 
 // Security warning for production
 if (NODE_ENV === 'production' && JWT_SECRET === 'clubops-jwt-secret-2025-production-change-this') {
@@ -99,18 +100,42 @@ const mockDatabase = {
   financialRecords: []
 };
 
-// Authentication helper
+// Enhanced authentication helper with detailed logging
 const authenticateToken = (authHeader) => {
-  const token = authHeader && authHeader.split(' ')[1];
+  console.log(`🔍 Authenticating request - Auth header present: ${!!authHeader}`);
+  
+  if (!authHeader) {
+    console.log('❌ No authorization header provided');
+    return { error: 'Access token required', status: 401 };
+  }
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    console.log('❌ Invalid authorization header format:', authHeader.substring(0, 20) + '...');
+    return { error: 'Invalid authorization header format', status: 401 };
+  }
+
+  const token = parts[1];
+  console.log(`🎫 Token received - Length: ${token.length} characters`);
+
   if (!token) {
+    console.log('❌ Empty token provided');
     return { error: 'Access token required', status: 401 };
   }
 
   try {
-    const user = jwt.verify(token, JWT_SECRET);
-    return { user };
+    console.log(`🔓 Verifying JWT token with secret length: ${JWT_SECRET.length}`);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log(`✅ Token verification successful - User ID: ${decoded.userId}, Club ID: ${decoded.clubId}, Role: ${decoded.role}`);
+    return { user: decoded };
   } catch (error) {
-    console.error('Token verification error:', error.message);
+    console.error('❌ Token verification failed:', error.message);
+    console.error('Error type:', error.name);
+    if (error.name === 'TokenExpiredError') {
+      console.error('Token expired at:', error.expiredAt);
+    } else if (error.name === 'JsonWebTokenError') {
+      console.error('JWT Error details:', error.message);
+    }
     return { error: 'Invalid or expired token', status: 403 };
   }
 };
@@ -191,37 +216,52 @@ const handleAuth = async (req, res, path) => {
         return res.status(500).json({ error: 'User club configuration error' });
       }
 
+      const tokenPayload = { 
+        userId: user.id, 
+        clubId: user.clubId, 
+        role: user.role,
+        iat: Math.floor(Date.now() / 1000)
+      };
+      
+      console.log('🎫 Creating JWT token with payload:', tokenPayload);
+      
       const token = jwt.sign(
-        { 
-          userId: user.id, 
-          clubId: user.clubId, 
-          role: user.role,
-          iat: Math.floor(Date.now() / 1000)
-        },
+        tokenPayload,
         JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      console.log('Login successful for:', email);
+      console.log(`✅ Login successful for: ${email}`);
+      console.log(`🎫 Token generated - Length: ${token.length} characters`);
 
-      // Return the correct structure that frontend expects
-      return res.status(200).json({
+      const responseData = {
         token,
         user: {
           id: user.id.toString(),
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          clubs: [{  // ✅ Return clubs array instead of club object
+          clubs: [{
             id: club.id.toString(),
             name: club.name,
             role: user.role
           }]
         }
+      };
+
+      console.log('📤 Sending login response:', {
+        hasToken: !!responseData.token,
+        tokenLength: responseData.token.length,
+        userEmail: responseData.user.email,
+        clubsCount: responseData.user.clubs.length
       });
+
+      return res.status(200).json(responseData);
     }
 
     if (path === '/auth/me' && req.method === 'GET') {
+      console.log(`${new Date().toISOString()} - /auth/me request`);
+      
       const auth = authenticateToken(req.headers.authorization);
       if (auth.error) {
         console.log('Auth/me failed:', auth.error);
@@ -232,31 +272,33 @@ const handleAuth = async (req, res, path) => {
       const club = mockDatabase.clubs.find(c => c.id === auth.user.clubId);
       
       if (!user) {
-        console.log('Auth/me failed: User not found');
+        console.log('Auth/me failed: User not found for ID:', auth.user.userId);
         return res.status(404).json({ error: 'User not found' });
       }
 
       if (!club) {
-        console.log('Auth/me failed: Club not found');
+        console.log('Auth/me failed: Club not found for ID:', auth.user.clubId);
         return res.status(404).json({ error: 'User club not found' });
       }
 
-      console.log('Auth/me successful for user:', user.email);
+      console.log('✅ Auth/me successful for user:', user.email);
 
-      // Return the correct structure that frontend expects
-      return res.status(200).json({
+      const responseData = {
         user: {
           id: user.id.toString(),
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          clubs: [{  // ✅ Return clubs array instead of club object
+          clubs: [{
             id: club.id.toString(),
             name: club.name,
             role: user.role
           }]
         }
-      });
+      };
+
+      console.log('📤 Sending /auth/me response for user:', user.email);
+      return res.status(200).json(responseData);
     }
 
     return res.status(404).json({ error: 'Auth endpoint not found' });
@@ -405,17 +447,18 @@ module.exports = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname;
 
-    console.log(`${new Date().toISOString()} - ${req.method} ${path} - Origin: ${req.headers.origin || 'none'} - User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+    console.log(`${new Date().toISOString()} - ${req.method} ${path} - Origin: ${req.headers.origin || 'none'} - Auth: ${req.headers.authorization ? 'Bearer ***' : 'none'}`);
 
     // Health check
     if (path === '/health') {
       return res.status(200).json({ 
         status: 'healthy', 
         timestamp: new Date().toISOString(),
-        version: '1.0.2',
+        version: '1.0.3',
         platform: 'Vercel Serverless',
         environment: NODE_ENV,
-        corsOrigin: corsHeaders['Access-Control-Allow-Origin']
+        corsOrigin: corsHeaders['Access-Control-Allow-Origin'],
+        jwtSecretLength: JWT_SECRET.length
       });
     }
 
