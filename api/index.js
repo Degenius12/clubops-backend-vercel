@@ -32,7 +32,8 @@ const mockDatabase = {
       id: 1,
       email: "admin@eliteclub.com",
       password: "$2a$10$8K1p3YQ8Z7X9.nKJ2L0FZeBHvJ6QV1WUO2R3HM4N5.ZY7Q8K1p3YQ", // admin123
-      name: "Club Manager",
+      firstName: "Club",
+      lastName: "Manager",
       role: "manager",
       clubId: 1
     }
@@ -145,14 +146,19 @@ const handleAuth = async (req, res, path) => {
         { expiresIn: '24h' }
       );
 
+      // Fixed: Return the correct structure that frontend expects
       return res.status(200).json({
         token,
         user: {
-          id: user.id,
-          name: user.name,
+          id: user.id.toString(),
           email: user.email,
-          role: user.role,
-          club: club
+          firstName: user.firstName,
+          lastName: user.lastName,
+          clubs: [{  // ✅ Return clubs array instead of club object
+            id: club.id.toString(),
+            name: club.name,
+            role: user.role
+          }]
         }
       });
     } catch (error) {
@@ -174,12 +180,19 @@ const handleAuth = async (req, res, path) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Fixed: Return the correct structure that frontend expects
     return res.status(200).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      club: club
+      user: {
+        id: user.id.toString(),
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        clubs: [{  // ✅ Return clubs array instead of club object
+          id: club.id.toString(),
+          name: club.name,
+          role: user.role
+        }]
+      }
     });
   }
 
