@@ -3,8 +3,11 @@ const jwt = require('jsonwebtoken');
 
 // Environment variables with fallbacks
 const JWT_SECRET = process.env.JWT_SECRET || 'clubops-jwt-secret-2025-production-change-this';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://clubops-frontend.vercel.app';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://clubops-saas-platform.vercel.app';
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+console.log(`🚀 Backend starting - Environment: ${NODE_ENV}`);
+console.log(`🌐 Configured frontend URL: ${FRONTEND_URL}`);
 
 // Security warning for production
 if (NODE_ENV === 'production' && JWT_SECRET === 'clubops-jwt-secret-2025-production-change-this') {
@@ -21,6 +24,8 @@ const corsHeaders = {
   'X-Frame-Options': 'DENY',
   'X-XSS-Protection': '1; mode=block'
 };
+
+console.log(`🔒 CORS configured for origin: ${corsHeaders['Access-Control-Allow-Origin']}`);
 
 // Mock Database (In production, use a real database)
 const mockDatabase = {
@@ -392,6 +397,7 @@ module.exports = async (req, res) => {
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
+    console.log(`${new Date().toISOString()} - CORS preflight request from origin: ${req.headers.origin}`);
     return res.status(200).end();
   }
 
@@ -399,16 +405,17 @@ module.exports = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname;
 
-    console.log(`${new Date().toISOString()} - ${req.method} ${path} - User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+    console.log(`${new Date().toISOString()} - ${req.method} ${path} - Origin: ${req.headers.origin || 'none'} - User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
 
     // Health check
     if (path === '/health') {
       return res.status(200).json({ 
         status: 'healthy', 
         timestamp: new Date().toISOString(),
-        version: '1.0.1',
+        version: '1.0.2',
         platform: 'Vercel Serverless',
-        environment: NODE_ENV
+        environment: NODE_ENV,
+        corsOrigin: corsHeaders['Access-Control-Allow-Origin']
       });
     }
 
